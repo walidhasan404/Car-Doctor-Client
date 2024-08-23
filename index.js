@@ -9,7 +9,11 @@ const port = process.env.PORT || 5000;
 
 // MIDDLEWARE
 app.use(cors({
-  origin: ['http://localhost:5173'],
+  origin: [
+    "http://localhost:5173",
+    "https://cars-doctor-client-5e96d.web.app",
+  ],
+  optionSuccessStatus: 200,
   credentials: true
 }));
 app.use(express.json());
@@ -34,7 +38,7 @@ const logger = async (req, res, next) => {
 }
 
 const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
+  const token = req?.cookies?.token;
   console.log('Value of the token is: ', token);
   if (!token) {
     return res.status(401).send({ message: 'not authorized' })
@@ -47,13 +51,13 @@ const verifyToken = async (req, res, next) => {
     console.log('value in the token', decoded);
     req.user = decoded;
     next();
-  })
+  });
 }
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const serviceCollection = client.db('cars-doctor').collection('services');
     const bookingsCollection = client.db('cars-doctor').collection('bookings');
@@ -63,12 +67,18 @@ async function run() {
       console.log(user);
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1h' })
 
-      res
-        .cookie('token', token, {
-          httpOnly: true,
-          secure: false,
-        })
+      res.cookie('token', token, {
+        httpOnly: true,
+        secure: true,
+        sameSite: 'none'
+      })
         .send({ success: true });
+    })
+
+    app.post('/logout', async (req, res) => {
+      const user = req.body;
+      console.log('logging out', user);
+      res.clearCookie('token', { maxAge: 0 }).send({ success: true })
     })
 
     app.get('/services', async (req, res) => {
@@ -92,14 +102,12 @@ async function run() {
 
 
     // bookings
-
-
     app.get('/bookings', logger, verifyToken, async (req, res) => {
       console.log(req.query.email);
       // console.log('token', req.cookies.token);
       console.log('user in the valid token', req.user);
-      if(req.query.email !== req.user.email){
-        return res.status(403).send({message: 'Forbidden Access'})
+      if (req.query.email !== req.user.email) {
+        return res.status(403).send({ message: 'Forbidden Access' })
       }
       let query = {};
       if (req.query?.email) {
